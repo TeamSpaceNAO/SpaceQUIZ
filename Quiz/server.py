@@ -1,38 +1,40 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from threading import Thread
 import webbrowser
 import os
-#import pyautogui
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import socket
+import time
 
 domanda = 1
 change = 1
 risposteGiuste = ['A','C','A','A'] 
 run = False
-
-database = {'1':[],'2':[],'3':[]} #possibilità di creare un for per più squadre
-#database = {'1':[],'2':[]}
+domande = ["domanda 1","domanda 2","domanda 3","domanda 4"]
 
 
-def naoTcp_winner(vincitore):
+database = {}
+for i in range(1, 3+1):
+    database[str(i)] = []
+
+
+
+def sendStringToNao(string):
     s = socket.socket()
-    s.connect(('192.168.1.122',20000))
-    s.send(str(vincitore).encode())
-
-
+    s.connect(('192.168.1.122', 12560))
+    s.send(str(string).encode())
+    s.close()
 
 def change_page(n):
-    global database
+    global database, domande
     if n <= 4:
         webbrowser.open('file:///'+str(os.getcwd())+'/domande/domanda'+str(n)+'.html')
+        sendStringToNao(str('domanda '+str(n)))
         print('\nApertura pagina domanda '+str(n))
     elif n == 5: 
-        #webbrowser.open('file:///'+str(os.getcwd())+"/domande/risultati.html")
         print("\nGioco finito!")
-        print(database)
+        #invio vincitori
         ris = []
         for a in database:
             b = 0
@@ -41,14 +43,20 @@ def change_page(n):
                     b+=1
             ris.append(b)
         ris = np.array(ris)
-        #m, h) = max((v,h) for v,h in enumerate(ris))
-        #rint(str(m)+' '+str(h))
-        #naoTcp_winner(database[i])
-        #print(database[h])
-        maxV = max(ris)
-        ind = [i for i, j in enumerate(ris) if j == maxV]
-        c = int(str(ind)[1])+1
-        naoTcp_winner("Squadra "+str(c))
+        maxV = max(ris) 
+        vinc = []
+        for i in range(len(ris)):
+            if ris[i] == maxV:
+                vinc.append(i+1)
+        if len(vinc)>1:
+            ult = ''
+            for i in range(len(vinc)):
+                ult += 'squadra '+str(vinc[i])+', '
+            sendStringToNao(str(ult))
+        else:
+            sendStringToNao('squadra'+str(vinc[0]))
+        
+        #creazione e stampa istrogramma 
         plt.bar(range(len(database)), ris, tick_label=list(database.keys()))
         plt.xlabel('Squadre')
         plt.ylabel('Risposte corrette')
@@ -59,8 +67,7 @@ def change_page(n):
             cv2.setWindowProperty('risultati', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
             cv2.imshow('risultati', img)
             if cv2.waitKey(0) == 27:
-                break
-
+                break      
 
 class S(BaseHTTPRequestHandler):
 
@@ -69,7 +76,7 @@ class S(BaseHTTPRequestHandler):
 
         post_data = self.rfile.read(int(self.headers['Content-Length'])) 
         data = str(post_data.decode('utf-8'))
-        #self._set_response()
+
 
         if data == "inizia" and change ==1: #richiesta di nao per le risposte
             run = True
@@ -105,8 +112,7 @@ def runHTTP(server_class=HTTPServer, handler_class=S, port=8081):
 
 
 
-#pyautogui.hotkey("fn","f11")
-httpThread = Thread(target=runHTTP())
-    
+
 if __name__ == "__main__":
-    httpThread.run()
+    runHTTP()
+
